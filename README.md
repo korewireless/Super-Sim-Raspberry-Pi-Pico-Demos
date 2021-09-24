@@ -16,6 +16,6 @@ Please see the first guide for [installation instructions](https://www.twilio.co
 
 ## Licenses
 
-`HT16K33` and `HT16K33Segment` classes © 2021, Tony Smith (@smittytone), used with permission. Licensed under the terms of the MIT license.
+[`HT16K33`](https://github.com/smittytone/HT16K33-Python) and [`HT16K33Segment`](https://github.com/smittytone/HT16K33-Python) code © 2021, Tony Smith (@smittytone), used with permission. Licensed under the terms of the [MIT license](https://github.com/smittytone/HT16K33-Python/blob/main/LICENSE).
 
-All other code © 2021, Twilio. Licensed under the terms of the MIT license.
+All other code © 2021, Twilio. Licensed under the terms of the [MIT license](./LICENSE.md).
