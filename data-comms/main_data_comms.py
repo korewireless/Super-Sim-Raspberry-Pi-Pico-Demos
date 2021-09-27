@@ -619,13 +619,13 @@ Make a request to a sample server
 '''
 def process_command_get():
     print("Requesting data...")
-    server = #"YOUR_BEECEPTOR_URL"
+    server = "YOUR_BEECEPTOR_URL"
     endpoint_path = "/api/v1/status"
     process_request(server, endpoint_path)
 
 def process_command_post():
     print("Sending data...")
-    server = #"YOUR_BEECEPTOR_URL"
+    server = "YOUR_BEECEPTOR_URL"
     endpoint_path = "/api/v1/logs"
     process_request(server, endpoint_path, "{:.2f}".format(sensor.read_temp()))
 
