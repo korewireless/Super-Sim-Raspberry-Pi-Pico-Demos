@@ -1,5 +1,6 @@
 # Version 1.0.0
 # Copyright © 2021, Twilio
+# Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
 
 from machine import UART, Pin, I2C
@@ -362,8 +363,8 @@ def configure_modem():
     # Set the error reporting level, set SMS text mode, delete left-over SMS
     # select LTE-only mode, select Cat-M only mode, set the APN to 'super' for Super SIM
     send_at("AT+CMEE=2;+CMGF=1;+CMGD=,4;+CNMP=38;+CMNB=1;+CGDCONT=1,\"IP\",\"super\"")
-    # Set SSL no verify, set HTTPS request parameters
-    send_at("AT+SHSSL=1,\"\";+SHCONF=\"BODYLEN\",1024;+SHCONF=\"HEADERLEN\",350")
+    # Set SSL version, SSL no verify, set HTTPS request parameters
+    send_at("AT+CSSLCFG=\"sslversion\",1,3;+SHSSL=1,\"\";+SHCONF=\"BODYLEN\",1024;+SHCONF=\"HEADERLEN\",350")
     print("Modem configured for Cat-M and Super SIM")
 
 '''
@@ -422,7 +423,6 @@ def start_session(server):
     # or 90s passes (timeout)
     now = ticks_ms()
     while ((ticks_ms() - now) < 90000):
-        #if len(resp) > 0: print(resp)
         if "OK" in resp: return True
         if "ERROR" in resp: return False
         resp = read_buffer(1000)
@@ -619,13 +619,13 @@ Make a request to a sample server
 '''
 def process_command_get():
     print("Requesting data...")
-    server = "YOUR_BEECEPTOR_URL"
+    server = #"YOUR_BEECEPTOR_URL"
     endpoint_path = "/api/v1/status"
     process_request(server, endpoint_path)
 
 def process_command_post():
     print("Sending data...")
-    server = "YOUR_BEECEPTOR_URL"
+    server = #"YOUR_BEECEPTOR_URL"
     endpoint_path = "/api/v1/logs"
     process_request(server, endpoint_path, "{:.2f}".format(sensor.read_temp()))
 
@@ -698,7 +698,7 @@ display.set_brightness(2)
 display.clear().draw()
 
 # Set up the MCP9808 sensor
-sensor = MCP9808(i2c=i2c)
+sensor = MCP9808(i2c)
 
 # Set the LED and turn it off
 led = Pin(25, Pin.OUT)

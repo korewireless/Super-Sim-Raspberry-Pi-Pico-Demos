@@ -1,5 +1,6 @@
 # Version 1.0.0
 # Copyright © 2021, Twilio
+# Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
 
 from machine import UART, Pin, I2C
@@ -501,7 +502,7 @@ display.set_brightness(2)
 display.clear().draw()
 
 # Set up the MCP9808 sensor
-sensor = MCP9808(i2c=i2c)
+sensor = MCP9808(i2c)
 
 # Set the LED and turn it off
 led = Pin(25, Pin.OUT)
