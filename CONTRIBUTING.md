@@ -2,7 +2,7 @@
 
 Contributions are welcome.
 
-All third-party contributors acknowledge that any contributions they provide will be made under the same [MIT license]() that the open source project is provided under.
+All third-party contributors acknowledge that any contributions they provide will be made under the same [MIT license](LICENSE.md) that the open source project is provided under.
 
 Pull requests should be made against the `develop` branch only.
 

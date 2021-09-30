@@ -14,9 +14,8 @@ Use it either to save cutting and pasting code while following the guides mentio
 
 Please see the first guide for [installation instructions](https://www.twilio.com/docs/iot/supersim/get-started-with-super-sim-and-the-raspberry-pi-pico).
 
-
-## Licenses
+## License and Copyright
 
 [`HT16K33`](https://github.com/smittytone/HT16K33-Python) and [`HT16K33Segment`](https://github.com/smittytone/HT16K33-Python) code © 2021, Tony Smith (@smittytone), used with permission. Licensed under the terms of the [MIT license](https://github.com/smittytone/HT16K33-Python/blob/main/LICENSE).
 
-All other code © 2021, Twilio. Licensed under the terms of the [MIT license](./LICENSE.md).
+All other code © 2021, Twilio. Licensed under the terms of the [MIT license](LICENSE.md).
