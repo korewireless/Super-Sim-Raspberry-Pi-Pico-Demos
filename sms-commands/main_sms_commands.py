@@ -1,4 +1,4 @@
-# Version 1.1.0
+# Version 1.1.1
 # Copyright © 2022, Twilio
 # Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
@@ -282,7 +282,7 @@ class HT16K33Segment(HT16K33):
         char = char.lower()
         char_val = 0xFF
         if char == "deg":
-            char_val = HT16K33_SEGMENT_DEGREE_CHAR
+            char_val = self.HT16K33_SEGMENT_DEGREE_CHAR
         elif char == '-':
             char_val = self.HT16K33_SEGMENT_MINUS_CHAR
         elif char == ' ':
@@ -467,7 +467,12 @@ def process_command_tmp():
 Listen for incoming SMS Commands
 '''
 def listen():
-    print("Listening for Commands...")
+    print("Listening for SMS Commands...\n")
+    print("Sample call:\n")
+    print("twilio api:supersim:v1:sms-commands:create \\")
+    print("  --sim <YOUR_SIM_SID> \\")
+    print("  --payload \"NUM=1234\"\n")
+
     while True:
         # Did we receive a Unsolicited Response Code (URC)?
         buffer = read_buffer(5000)
@@ -492,6 +497,10 @@ def listen():
                     # Delete all SMS now we're done with them
                     send_at("AT+CMGD=,4")
 
+
+'''
+Runtime start
+'''
 # Set up the modem UART
 modem = UART(0, 115200)
 

@@ -1,4 +1,4 @@
-# Version 1.1.0
+# Version 1.1.1
 # Copyright © 2022, Twilio
 # Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
@@ -283,7 +283,7 @@ class HT16K33Segment(HT16K33):
         char = char.lower()
         char_val = 0xFF
         if char == "deg":
-            char_val = HT16K33_SEGMENT_DEGREE_CHAR
+            char_val = self.HT16K33_SEGMENT_DEGREE_CHAR
         elif char == '-':
             char_val = self.HT16K33_SEGMENT_MINUS_CHAR
         elif char == ' ':
@@ -656,7 +656,8 @@ def process_request(server, path, data=None):
 Listen for incoming SMS Commands
 '''
 def listen():
-    print("Listening for Commands...")
+    print("Listening for data commands...\n")
+
     while True:
         # Did we receive a Unsolicited Response Code (URC)?
         buffer = read_buffer(5000)
@@ -685,6 +686,10 @@ def listen():
                     # Delete all SMS now we're done with them
                     send_at("AT+CMGD=,4")
 
+
+'''
+Runtime start
+'''
 # Globals
 req_head_set = False
 

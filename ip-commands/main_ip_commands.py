@@ -1,4 +1,4 @@
-# Version 1.1.0
+# Version 1.1.1
 # Copyright © 2022, Twilio
 # Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
@@ -6,6 +6,13 @@
 import sys
 from machine import UART, Pin, I2C
 from utime import ticks_ms, sleep
+
+'''
+GLOBALS
+'''
+# Optionally, set your preferred port number
+DEVICE_PORT = "6969"
+
 
 class HT16K33:
     """
@@ -255,7 +262,7 @@ class HT16K33Segment(HT16K33):
         char = char.lower()
         char_val = 0xFF
         if char == "deg":
-            char_val = HT16K33_SEGMENT_DEGREE_CHAR
+            char_val = self.HT16K33_SEGMENT_DEGREE_CHAR
         elif char == '-':
             char_val = self.HT16K33_SEGMENT_MINUS_CHAR
         elif char == ' ':
@@ -385,8 +392,8 @@ def close_data_conn():
 Start a UDP session
 '''
 def start_udp_session():
-    send_at("AT+CASERVER=0,0,\"UDP\",6969")
-    send_at("AT+CACFG=\"REMOTEADDR\",0,100.64.0.1,6969")
+    send_at("AT+CASERVER=0,0,\"UDP\"," + DEVICE_PORT)
+    send_at("AT+CACFG=\"REMOTEADDR\",0,100.64.0.1," + DEVICE_PORT)
 
 '''
 Split a response from the modem into separate lines,
@@ -436,7 +443,12 @@ def listen():
     if open_data_conn():
         # Success... start a UDP server
         start_udp_session()
-        print("Listening for IP commands...")
+        print("Listening for IP commands...\n")
+        print("Sample call:\n")
+        print("twilio api:supersim:v1:ip-commands:create \\")
+        print("  --sim <YOUR_SIM_SID> \\")
+        print("  --device-port " + DEVICE_PORT + " \\")
+        print("  --payload \"NUM=1234\"\n")
 
         # Loop to listen for messages
         while True:
@@ -499,6 +511,7 @@ def send_data(data_string):
         # 'chr(26)' is the code for ctrl-z, which the modem
         # uses as an end-of-message marker
         send_at(data_string + chr(26))
+
 
 '''
 Runtime start
