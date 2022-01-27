@@ -10,4 +10,4 @@ Pull requests should be made against the `develop` branch only.
 
 `HT16K33` and `HT16K33Segment` classes © 2021, Tony Smith (@smittytone), used with permission. Licensed under the terms of the MIT license.
 
-All other code © 2021, Twilio. Licensed under the terms of the MIT license.
+All other code © 2022, Twilio. Licensed under the terms of the MIT license.

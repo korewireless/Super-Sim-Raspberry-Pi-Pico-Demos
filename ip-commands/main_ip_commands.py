@@ -1,40 +1,11 @@
 # Version 1.0.0
-# Copyright © 2022, Twilio
+# Copyright © 2021, Twilio
 # Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
 
+import sys
 from machine import UART, Pin, I2C
 from utime import ticks_ms, sleep
-import json
-
-class MCP9808:
-    """
-    A simple driver for the I2C-connected MCP9808 temperature sensor.
-    This release supports MicroPython.
-    """
-
-    # *********** PRIVATE PROPERTIES **********
-
-    i2c = None
-    address = 0x18
-
-    # *********** CONSTRUCTOR **********
-
-    def __init__(self, i2c, i2c_address=0x18):
-        assert 0x00 <= i2c_address < 0x80, "ERROR - Invalid I2C address in MCP9808()"
-        self.i2c = i2c
-        self.address = i2c_address
-
-    # *********** PUBLIC METHODS **********
-
-    def read_temp(self):
-        # Read sensor and return its value in degrees celsius.
-        temp_bytes = self.i2c.readfrom_mem(self.address, 0x05, 2)
-        # Scale and convert to signed value.
-        temp_raw = (temp_bytes[0] << 8) | temp_bytes[1]
-        temp_cel = (temp_raw & 0x0FFF) / 16.0
-        if temp_raw & 0x1000: temp_cel -= 256.0
-        return temp_cel
 
 class HT16K33:
     """
@@ -156,6 +127,7 @@ class HT16K33:
         Writes a single command to the HT16K33. A private method.
         """
         self.i2c.writeto(self.address, bytes([byte]))
+
 
 class HT16K33Segment(HT16K33):
     """
@@ -297,19 +269,23 @@ class HT16K33Segment(HT16K33):
         if has_dot is True: self.buffer[self.POS[digit]] |= 0x80
         return self
 
+
+# Functions
+
 '''
 Send an AT command - return True if we got an expected
 response ('back'), otherwise False
 '''
-def send_at(cmd, back="OK", timeout=1000):
+def send_at(cmd, back="OK", timeout=500):
     # Send the command and get the response (until timeout)
     buffer = send_at_get_resp(cmd, timeout)
-    return (len(buffer) > 0 and back in buffer)
+    if len(buffer) > 0: return (back in buffer)
+    return False
 
 '''
 Send an AT command - just return the response
 '''
-def send_at_get_resp(cmd, timeout=1000):
+def send_at_get_resp(cmd, timeout=500):
     # Send the AT command
     modem.write((cmd + "\r\n").encode())
 
@@ -340,7 +316,7 @@ def boot_modem():
             return True
         if not state:
             print("Powering the modem")
-            module_power()
+            power_module()
             state = True
         sleep(4)
         count += 1
@@ -349,35 +325,36 @@ def boot_modem():
 '''
 Power the module on/off
 '''
-def module_power():
+def power_module():
     pwr_key = Pin(14, Pin.OUT)
     pwr_key.value(1)
     sleep(1.5)
     pwr_key.value(0)
 
 '''
-Configure the modem
+Check we are attached
+'''
+def check_network():
+    is_connected = False
+    response = send_at_get_resp("AT+COPS?", 1000)
+    line = split_msg(response, 1)
+    if "+COPS:" in line:
+        is_connected = (line.find(",") != -1)
+        if is_connected:
+            print("Network information:", line)
+    return is_connected
+
+'''
+Attach to the network
 '''
 def configure_modem():
-    # AT commands can be sent together, not just one at a time.
+    # AT commands can be sent together, not one at a time.
     # Set the error reporting level, set SMS text mode, delete left-over SMS
     # select LTE-only mode, select Cat-M only mode, set the APN to 'super' for Super SIM
     send_at("AT+CMEE=2;+CMGF=1;+CMGD=,4;+CNMP=38;+CMNB=1;+CGDCONT=1,\"IP\",\"super\"")
     # Set SSL version, SSL no verify, set HTTPS request parameters
     send_at("AT+CSSLCFG=\"sslversion\",1,3;+SHSSL=1,\"\";+SHCONF=\"BODYLEN\",1024;+SHCONF=\"HEADERLEN\",350")
     print("Modem configured for Cat-M and Super SIM")
-
-'''
-Check we are attached
-'''
-def check_network():
-    is_connected = False
-    response = send_at_get_resp("AT+COPS?")
-    line = split_msg(response, 1)
-    if "+COPS:" in line:
-        is_connected = (line.find(",") != -1)
-        if is_connected: print("Network information:", line)
-    return is_connected
 
 '''
 Open/close a data connection to the server
@@ -390,7 +367,7 @@ def open_data_conn():
     status = get_field_value(line, 1)
 
     if status == "0":
-        # Inactive data connection so start one up
+        # There's no active data connection so start one up
         success = send_at("AT+CNACT=0,1", "ACTIVE", 2000)
     elif status in ("1", "2"):
         # Active or operating data connection
@@ -405,131 +382,15 @@ def close_data_conn():
     print("Data connection inactive")
 
 '''
-Start/end an HTTP session
+Start a UDP session
 '''
-def start_session(server):
-    # Deal with an existing session if there is one
-    if send_at("AT+SHSTATE?", "1"):
-        print("Closing existing HTTP session")
-        send_at("AT+SHDISC")
-
-    # Configure a session with the server...
-    send_at("AT+SHCONF=\"URL\",\"" + server + "\"")
-
-    # ...and open it
-    resp = send_at_get_resp("AT+SHCONN", 2000)
-    # The above command may take a while to return, so
-    # continue to check the UART until we have a response,
-    # or 90s passes (timeout)
-    now = ticks_ms()
-    while ((ticks_ms() - now) < 90000):
-        if "OK" in resp: return True
-        if "ERROR" in resp: return False
-        resp = read_buffer(1000)
-    return False
-
-def end_session():
-    # Break the link to the server
-    send_at("AT+SHDISC")
-    print("HTTP session closed")
-
-'''
-Set a standard request header
-'''
-def set_request_header():
-    global req_head_set
-
-    # Check state variable to see if we need to
-    # set the standard request header
-    if not req_head_set:
-        send_at("AT+SHCHEAD")
-        send_at("AT+SHAHEAD=\"Content-Type\",\"application/x-www-form-urlencoded\";+SHAHEAD=\"User-Agent\",\"twilio-pi-pico/1.0.0\"")
-        send_at("AT+SHAHEAD=\"Cache-control\",\"no-cache\";+SHAHEAD=\"Connection\",\"keep-alive\";+SHAHEAD=\"Accept\",\"*/*\"")
-        req_head_set = True
-
-'''
-Set request body
-'''
-def set_request_body(body):
-    send_at("AT+SHCPARA;+SHPARA=\"data\",\"" + body + "\"")
-
-'''
-Make a GET, POST requests to the specified server
-'''
-def get_data(server, path):
-    return issue_request(server, path, None, "GET")
-
-def send_data(server, path, data):
-    return issue_request(server, path, data, "POST")
-
-def issue_request(server, path, body, verb):
-    result = ""
-
-    # Check the request verb
-    code = 0
-    verbs = ["GET", "PUT", "POST", "PATCH", "HEAD"]
-    if verb.upper() in verbs:
-        code = verbs.index(verb) + 1
-    else:
-        print("ERROR -- Unknown request verb specified")
-        return ""
-
-    # Attempt to open a data session
-    if start_session(server):
-        print("HTTP session open")
-        # Issue the request...
-        set_request_header()
-        print("HTTP request verb code:",code)
-        if body != None: set_request_body(body)
-        response = send_at_get_resp("AT+SHREQ=\"" + path + "\"," + str(code))
-        start = ticks_ms()
-        while ((ticks_ms() - start) < 90000):
-            if "+SHREQ:" in response: break
-            response = read_buffer(1000)
-
-        # ...and process the response
-        lines = split_msg(response)
-        for line in lines:
-            if len(line) == 0: continue
-            if "+SHREQ:" in line:
-                status_code = get_field_value(line, 1)
-                if int(status_code) > 299:
-                    print("ERROR -- HTTP status code",status_code)
-                    break
-
-                # Get the data from the modem
-                data_length = get_field_value(line, 2)
-                if data_length == "0": break
-                response = send_at_get_resp("AT+SHREAD=0," + data_length)
-
-                # The JSON data may be multi-line so store everything in the
-                # response that comes after (and including) the first '{'
-                pos = response.find("{")
-                if pos != -1: result = response[pos:]
-        end_session()
-    else:
-        print("ERROR -- Could not connect to server")
-    return result
-
-'''
-Flash the Pico LED
-'''
-def led_blink(blinks):
-    for i in range(0, blinks):
-        led_off()
-        sleep(0.25)
-        led_on()
-        sleep(0.25)
-
-def led_on():
-    led.value(1)
-
-def led_off():
-    led.value(0)
+def start_udp_session():
+    send_at("AT+CASERVER=0,0,\"UDP\",6969")
+    send_at("AT+CACFG=\"REMOTEADDR\",0,100.64.0.1,6969")
 
 '''
 Split a response from the modem into separate lines,
-removing empty lines and returning all that's left or,
+removing empty lines and returning what's left or,
 if 'want_line' has a non-default value, return that one line
 '''
 def split_msg(msg, want_line=999):
@@ -543,12 +404,6 @@ def split_msg(msg, want_line=999):
     return results
 
 '''
-Extract the SMS index from a modem response line
-'''
-def get_sms_number(line):
-    return get_field_value(line, 1)
-
-'''
 Extract a comma-separated field value from a line
 '''
 def get_field_value(line, field_num):
@@ -558,136 +413,96 @@ def get_field_value(line, field_num):
     return ""
 
 '''
-Blink the LED n times after extracting n from the command string
+Flash the Pico LED
 '''
-def process_command_led(msg):
-    blinks = msg[4:]
-    print("Blinking LED",blinks,"time(s)")
-    try:
-        led_blink(int(blinks))
-    except:
-        print("BAD COMMAND:",blinks)
+def led_blink(blinks):
+    for i in range(0, blinks):
+        led_off()
+        time.sleep(0.25)
+        led_on()
+        time.sleep(0.25)
+
+def led_on():
+    led.value(1)
+
+def led_off():
+    led.value(0)
+
+'''
+Listen for IP commands
+'''
+def listen():
+    # Try and open an IP connection
+    if open_data_conn():
+        # Success... start a UDP server
+        start_udp_session()
+        print("Listening for IP commands...")
+
+        # Loop to listen for messages
+        while True:
+            # Check for data from the module
+            buffer = read_buffer(5000)
+            # Did we receive a Unsolicited Response Code (URC)?
+            if len(buffer) > 0:
+                lines = split_msg(buffer)
+                for line in lines:
+                    if "+CANEW:" in line:
+                        # A UDP packet has been received, so get its data
+                        resp = send_at_get_resp("AT+CARECV=0,100")
+                        parts = split_msg(resp)
+                        if len(parts) > 1:
+                            # Split at the comma
+                            cmd = get_field_value(parts[1], 1)
+                            if cmd != "":
+                                print("Command received:",cmd)
+                                process_cmd(cmd)
+                            break
+    else:
+        print("ERROR -- could not open data connection")
+
+def process_cmd(line):
+    val = ""
+    cmd = line
+    val_start = line.find("=")
+    if val_start != -1:
+        val = line[val_start + 1:]
+        cmd = line[:val_start]
+    cmd = cmd.upper()
+    if cmd == "NUM" and len(val) < 5:
+        process_command_num(val)
+    elif cmd == "SEND":
+        send_data("We can\'t wait to see what you build!")
+    else:
+        print("Command not recognized")
 
 '''
 Display the decimal value n after extracting n from the command string
 '''
-def process_command_num(msg):
-    value = msg[4:]
+def process_command_num(value):
     print("Setting",value,"on the LED")
     try:
         # Extract the decimal value (string) from 'msg' and convert
         # to a hex integer for easy presentation of decimal digits
         hex_value = int(value, 16)
         display.set_number((hex_value & 0xF000) >> 12, 0)
-        display.set_number((hex_value & 0x0F00) >>  8, 1)
-        display.set_number((hex_value & 0x00F0) >>  4, 2)
-        display.set_number((hex_value & 0x000F), 3).update()
+        display.set_number((hex_value & 0x0F00) >> 8,  1)
+        display.set_number((hex_value & 0x00F0) >> 4,  2)
+        display.set_number((hex_value & 0x000F), 3).draw()
     except:
-        print("BAD COMMAND:",value)
+        print("Bad value:",value)
 
-'''
-Get a temperature reading and send it back as an SMS
-'''
-def process_command_tmp():
-    print("Sending a temperature reading")
-    celsius_temp = "{:.2f}".format(sensor.read_temp())
-    if send_at("AT+CMGS=\"000\"", ">"):
+def send_data(data_string):
+    length = len(data_string)
+    if send_at("AT+CASEND=0," + str(length), ">"):
         # '>' is the prompt sent by the modem to signal that
         # it's waiting to receive the message text.
         # 'chr(26)' is the code for ctrl-z, which the modem
         # uses as an end-of-message marker
-        r = send_at_get_resp(celsius_temp + chr(26))
-    # Display the temperature on the LED
-    digit = 0
-    previous_char = ""
-    for temp_char in celsius_temp:
-        if temp_char == "." and 0 < digit < 3:
-            # Set the decimal point -- but only if we're not
-            # at the last digit to be shown
-            display.set_character(previous_char, digit - 1, True)
-        else:
-            # Set the current digit
-            display.set_character(temp_char, digit)
-            previous_char = temp_char
-            digit += 1
-        if digit == 3: break
-    # Add a final 'c' and update the display
-    display.set_character('c', 3).update()
+        send_at(data_string + chr(26))
 
 '''
-Make a request to a sample server
+Runtime start
 '''
-def process_command_get():
-    print("Requesting data...")
-    server = "YOUR_BEECEPTOR_URL"
-    endpoint_path = "/api/v1/status"
-    process_request(server, endpoint_path)
-
-def process_command_post():
-    print("Sending data...")
-    server = "YOUR_BEECEPTOR_URL"
-    endpoint_path = "/api/v1/logs"
-    process_request(server, endpoint_path, "{:.2f}".format(sensor.read_temp()))
-
-def process_request(server, path, data=None):
-    # Attempt to open a data connection
-    if open_data_conn():
-        if data is not None:
-            result = send_data(server, path, data)
-        else:
-            result = get_data(server, path)
-
-        if len(result) > 0:
-            # Decode the received JSON
-            try:
-                response = json.loads(result)
-                # Extract an integer value and show it on the display
-                if "status" in response:
-                    process_command_num("NUM=" + str(response["status"]))
-            except:
-                print("ERROR -- No JSON data received. Raw:\n",result)
-        else:
-            print("ERROR -- No JSON data received")
-
-        # Close the open connection
-        close_data_conn()
-
-'''
-Listen for incoming SMS Commands
-'''
-def listen():
-    print("Listening for Commands...")
-    while True:
-        # Did we receive a Unsolicited Response Code (URC)?
-        buffer = read_buffer(5000)
-        if len(buffer) > 0:
-            lines = split_msg(buffer)
-            for line in lines:
-                if "+CMTI:" in line:
-                    # We received an SMS, so get it...
-                    num = get_sms_number(line)
-                    msg = send_at_get_resp("AT+CMGR=" + num, 2000)
-
-                    # ...and process it for commands
-                    cmd = split_msg(msg, 2).upper()
-                    if cmd.startswith("LED="):
-                        process_command_led(cmd)
-                    elif cmd.startswith("NUM="):
-                        process_command_num(cmd)
-                    elif cmd.startswith("TMP"):
-                        process_command_tmp()
-                    elif cmd.startswith("GET"):
-                        process_command_get()
-                    elif cmd.startswith("POST"):
-                        process_command_post()
-                    else:
-                        print("UNKNOWN COMMAND:",cmd)
-                    # Delete all SMS now we're done with them
-                    send_at("AT+CMGD=,4")
-
-# Globals
-req_head_set = False
-
 # Set up the modem UART
 modem = UART(0, 115200)
 
@@ -695,10 +510,8 @@ modem = UART(0, 115200)
 i2c = I2C(1, scl=Pin(3), sda=Pin(2))
 display = HT16K33Segment(i2c)
 display.set_brightness(2)
-display.clear().draw()
-
-# Set up the MCP9808 sensor
-sensor = MCP9808(i2c)
+display.set_glyph(64, 0).set_glyph(64, 1)
+display.set_glyph(64, 2).set_glyph(64, 3).draw()
 
 # Set the LED and turn it off
 led = Pin(25, Pin.OUT)
@@ -719,8 +532,6 @@ if boot_modem():
 
     # Light the LED
     led_on()
-
-    # Begin listening for commands
     listen()
 else:
     # Error! Blink LED 5 times
