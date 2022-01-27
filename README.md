@@ -1,4 +1,4 @@
-# Super SIM Raspberry Pi Pico Demo
+# Super SIM Raspberry Pi Pico Demos
 
 ![Raspberry Pi Pico, Waveshare Pico SIM7080G modem, and Super SIM](images/p1020118.jpg)
 

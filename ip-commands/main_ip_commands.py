@@ -1,4 +1,4 @@
-# Version 1.0.0
+# Version 1.1.0
 # Copyright © 2022, Twilio
 # Contains code © 2021, Tony Smith (@smittytone)
 # Licence: MIT
